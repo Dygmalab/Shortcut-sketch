@@ -31,6 +31,8 @@
 #include "Macros.h"
 #include "MagicCombo.h"
 #include "MouseKeys.h"
+#include "Focus.h"
+#include "Settings.h"
 
 #define Key_LSBrck Key_LSquareBracket
 #define Key_RSBrck Key_RSquareBracket
@@ -183,79 +185,8 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
   ),
 };
 
-namespace FocusCommands {
 
-  bool led (const char *command) {
-    enum {
-      GET,
-      SET,
-      SETALL,
-      OFF,
-    } subCommand;
-
-    if (strncmp_P (command, PSTR ("led."), 4) != 0)
-      return false;
-    if (strcmp_P (command + 4, PSTR ("get")) == 0)
-      subCommand = GET;
-    else if (strcmp_P (command + 4, PSTR ("set")) == 0)
-      subCommand = SET;
-    else if (strcmp_P (command + 4, PSTR ("setAll")) == 0)
-      subCommand = SETALL;
-    else if (strcmp_P (command + 4, PSTR ("off")) == 0)
-      subCommand = OFF;
-    else
-      return false;
-
-    switch (subCommand) {
-    case GET:
-      {
-        uint8_t idx = Serial.parseInt ();
-        cRGB c = LEDControl.led_get_crgb_at (idx);
-        const __FlashStringHelper *spc = F(" ");
-
-        Serial.print (c.r);
-        Serial.print (spc);
-        Serial.print (c.g);
-        Serial.print (spc);
-        Serial.println (c.b);
-        break;
-      }
-    case SET:
-      {
-        uint8_t idx = Serial.parseInt ();
-        cRGB c;
-
-        c.r = Serial.parseInt ();
-        c.g = Serial.parseInt ();
-        c.b = Serial.parseInt ();
-
-        LEDControl.led_set_crgb_at (idx, c);
-        break;
-      }
-    case SETALL:
-      {
-        cRGB c;
-
-        c.r = Serial.parseInt ();
-        c.g = Serial.parseInt ();
-        c.b = Serial.parseInt ();
-
-        LEDControl.set_all_leds_to (c);
-
-        break;
-      }
-    case OFF:
-      LEDControl.set_all_leds_to (0, 0, 0);
-      break;
-    }
-
-    Serial.read ();
-    return true;
-  }
-
-}
-
-using namespace FocusCommands;
+//using namespace FocusCommands;
 
 void setup () {
   Serial.begin(9600);
@@ -263,38 +194,19 @@ void setup () {
   Kaleidoscope.setup (KEYMAP_SIZE);
   Kaleidoscope.use (&Hungarian, &LEDControl, NULL);
 
+  algernon::Settings::configure ();
   //algernon::ActiveLayerColor::configure ();
   algernon::MouseKeys::configure ();
   algernon::OneShot::configure ();
   algernon::MagicCombo::configure ();
   algernon::Macros::configure ();
 
-  Layer.on (_DVK);
-
   LEDControl.syncDelay = 64;
+  algernon::FocusSetup::configure ();
 
-  USE_PLUGINS (&Focus);
+  algernon::Settings::seal ();
 
-  Focus.addHook (FOCUS_HOOK_HELP);
-  Focus.addHook (FOCUS_HOOK_KEYMAP);
-  Focus.addHook (FOCUS_HOOK (FocusCommands::led,
-                             "led.set index r g b\n"
-                             "-------------------\n"
-                             " Set the led at `index` to the color described with `r`, `g`, and `b`.\n\n"
-                             "led.setAll r g b\n"
-                             "----------------\n"
-                             " Set all leds to the color described with `r`, `g`, and `b`.\n\n"
-                             "led.get index\n"
-                             "-------------\n"
-                             " Return the color of the LED at the `index` position, in `r g b` format.\n\n"
-                             "led.off\n"
-                             "-------\n"
-                             " Turn all LEDs off."));
-  Focus.addHook (FOCUS_HOOK_VERSION);
-
-  USE_PLUGINS (&EEPROMSettings, &EEPROMKeymap);
-
-  Layer.getKey = EEPROMKeymap.getKey;
+  Layer.getKey = EEPROMKeymap.getKeyOverride;
 }
 
 #if DEBUG
